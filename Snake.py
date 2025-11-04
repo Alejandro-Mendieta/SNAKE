@@ -95,28 +95,6 @@ def cargar_audio():
     print("Advertencia: No se pudo cargar ningún archivo de audio")
     return False
 
-    """Cargar recursos de audio con múltiples formatos compatibles"""
-    formatos_audio = [
-        "assets/Musica/Musica-De-Fondo.ogg",
-        "assets/Musica/Musica-De-Fondo.wav",
-        "assets/Musica/Musica-De-Fondo.mp3"
-    ]
-    
-    for formato in formatos_audio:
-        try:
-            ruta_audio = resource_path(formato)
-            if os.path.exists(ruta_audio):
-                mixer.music.load(ruta_audio)
-                mixer.music.play(-1)
-                mixer.music.set_volume(0.3)
-                print(f"Audio cargado: {formato}")
-                return True
-        except Exception as e:
-            print(f"No se pudo cargar {formato}: {e}")
-    
-    print("Advertencia: No se pudo cargar ningún archivo de audio")
-    return False
-
 # Cargar audio
 cargar_audio()
 
@@ -298,7 +276,7 @@ class Serpiente:
         if puntuacion >= 100:
             crear_particulas(
                 self.cuerpo[0][0] * TAMANIO_CELDA + TAMANIO_CELDA // 2,
-                self.cuerpo[0][1] * TAMANIO_CELDA + TAMANIO_CELDA // 2,
+                self.serpiente.cuerpo[0][1] * TAMANIO_CELDA + TAMANIO_CELDA // 2,
                 30, "estrellas"
             )
         elif puntuacion >= 50:
@@ -350,40 +328,59 @@ class Serpiente:
 
 class Comida:
     def __init__(self):
-        self.posicion = (0, 0)
+        self.posiciones = []  # Cambiado a lista para múltiples manzanas
         self.color = ROJO
-        self.generar_nueva_posicion()
+        self.generar_multiples_posiciones(3)  # Generar 3 manzanas iniciales
     
     def generar_nueva_posicion(self, cuerpo_serpiente=None):
+        """Genera una sola posición válida"""
         if cuerpo_serpiente is None:
             cuerpo_serpiente = []
         
         while True:
             nueva_pos = (random.randint(0, COLUMNAS - 1), random.randint(0, FILAS - 1))
-            if nueva_pos not in cuerpo_serpiente:
-                self.posicion = nueva_pos
-                break
+            if nueva_pos not in cuerpo_serpiente and nueva_pos not in self.posiciones:
+                return nueva_pos
+    
+    def generar_multiples_posiciones(self, cantidad, cuerpo_serpiente=None):
+        """Genera múltiples posiciones de comida"""
+        if cuerpo_serpiente is None:
+            cuerpo_serpiente = []
+        
+        nuevas_posiciones = []
+        for _ in range(cantidad):
+            nueva_pos = self.generar_nueva_posicion(cuerpo_serpiente + nuevas_posiciones)
+            nuevas_posiciones.append(nueva_pos)
+        
+        self.posiciones = nuevas_posiciones
+    
+    def eliminar_posicion(self, posicion):
+        """Elimina una posición específica cuando la serpiente la come"""
+        if posicion in self.posiciones:
+            self.posiciones.remove(posicion)
     
     def dibujar(self, pantalla):
-        x, y = self.posicion
-        rect = pygame.Rect(x * TAMANIO_CELDA, y * TAMANIO_CELDA, TAMANIO_CELDA, TAMANIO_CELDA)
-        
-        pygame.draw.circle(pantalla, self.color, rect.center, TAMANIO_CELDA // 2 - 2)
-        
-        tallo_rect = pygame.Rect(
-            rect.centerx - 2, 
-            rect.top + 2, 
-            4, 
-            6
-        )
-        pygame.draw.rect(pantalla, VERDE, tallo_rect)
-        
-        hoja_points = [
-            (rect.centerx + 2, rect.top + 4),
-            (rect.centerx + 6, rect.top + 2),
-            (rect.centerx + 4, rect.top + 6)
-        ]
-        pygame.draw.polygon(pantalla, VERDE_OSCURO, hoja_points)
+        """Dibuja todas las manzanas en sus posiciones"""
+        for posicion in self.posiciones:
+            x, y = posicion
+            rect = pygame.Rect(x * TAMANIO_CELDA, y * TAMANIO_CELDA, TAMANIO_CELDA, TAMANIO_CELDA)
+            
+            pygame.draw.circle(pantalla, self.color, rect.center, TAMANIO_CELDA // 2 - 2)
+            
+            tallo_rect = pygame.Rect(
+                rect.centerx - 2, 
+                rect.top + 2, 
+                4, 
+                6
+            )
+            pygame.draw.rect(pantalla, VERDE, tallo_rect)
+            
+            hoja_points = [
+                (rect.centerx + 2, rect.top + 4),
+                (rect.centerx + 6, rect.top + 2),
+                (rect.centerx + 4, rect.top + 6)
+            ]
+            pygame.draw.polygon(pantalla, VERDE_OSCURO, hoja_points)
 
 def dibujar_boton_reiniciar():
     color_boton = COLOR_BOTON_HOVER if boton_reiniciar_rect.collidepoint(pygame.mouse.get_pos()) else COLOR_BOTON
@@ -446,7 +443,7 @@ def dibujar_menu_principal():
     instrucciones = [
         "EVITA CHOCAR CON LOS BORDES Y CONTIGO MISMO",
         "USA LAS FLECHAS O WASD PARA MOVERTE",
-        "COME LA FRUTA ROJA PARA CRECER",
+        "COME LAS FRUTAS ROJAS PARA CRECER",
         "¡CONSIGUE LA MAYOR PUNTUACIÓN!"
     ]
     
@@ -518,7 +515,6 @@ class Juego:
     def reiniciar_juego(self):
         self.serpiente = Serpiente()
         self.comida = Comida()
-        self.comida.generar_nueva_posicion(self.serpiente.cuerpo)
         self.puntuacion = 0
         self.juego_activo = True
         self.pausa = False
@@ -603,17 +599,26 @@ class Juego:
                 self.estado_juego = "game_over"
                 print("Game Over!")
             
-            if self.serpiente.cuerpo[0] == self.comida.posicion:
-                self.serpiente.comer(self.puntuacion)
-                self.puntuacion += 10
-                self.comida.generar_nueva_posicion(self.serpiente.cuerpo)
-                print(f"Puntuación: {self.puntuacion}")
-                
-                # Ganador al llegar a 100 puntos
-                if self.puntuacion >= 100:
-                    self.estado_juego = "ganador"
-                    crear_particulas(ANCHO//2, ALTO//2, 200, "confeti")
-                    print("¡Ganador!")
+            # Verificar colisión con cualquier manzana
+            cabeza_serpiente = self.serpiente.cuerpo[0]
+            for posicion_comida in self.comida.posiciones[:]:  # Copia de la lista para iterar
+                if cabeza_serpiente == posicion_comida:
+                    # La serpiente come una manzana
+                    self.serpiente.comer(self.puntuacion)
+                    self.puntuacion += 10
+                    self.comida.eliminar_posicion(posicion_comida)
+                    
+                    # Generar 3 nuevas manzanas
+                    self.comida.generar_multiples_posiciones(3, self.serpiente.cuerpo)
+                    print(f"Puntuación: {self.puntuacion}")
+                    print(f"Manzanas en pantalla: {len(self.comida.posiciones)}")
+                    
+                    # Ganador al llegar a 100 puntos
+                    if self.puntuacion >= 100:
+                        self.estado_juego = "ganador"
+                        crear_particulas(ANCHO//2, ALTO//2, 200, "confeti")
+                        print("¡Ganador!")
+                    break
     
     def dibujar_bordes(self):
         borde_rect = pygame.Rect(0, 0, ANCHO, ALTO)
@@ -636,6 +641,12 @@ class Juego:
             fondo_texto = pygame.Surface((texto_puntuacion.get_width() + 10, texto_puntuacion.get_height() + 5), pygame.SRCALPHA)
             self.pantalla.blit(fondo_texto, (5, 5))
             self.pantalla.blit(texto_puntuacion, (10, 10))
+            
+            # Mostrar cantidad de manzanas
+            texto_manzanas = self.fuente.render(f'Manzanas: {len(self.comida.posiciones)}', True, NEGRO)
+            fondo_manzanas = pygame.Surface((texto_manzanas.get_width() + 10, texto_manzanas.get_height() + 5), pygame.SRCALPHA)
+            self.pantalla.blit(fondo_manzanas, (5, 40))
+            self.pantalla.blit(texto_manzanas, (10, 45))
             
             # Dibujar botones
             dibujar_boton_reiniciar()
@@ -699,7 +710,7 @@ fuente_pista = None
 def main():
     """Función principal con manejo de errores"""
     try:
-        print("Iniciando Snake Game con Botones...")
+        print("Iniciando Snake Game con Múltiples Manzanas...")
         juego = Juego()
         
         # Hacer las fuentes globales disponibles
