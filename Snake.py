@@ -629,8 +629,8 @@ class Juego:
                     print(f"Puntuación: {self.puntuacion}")
                     print(f"Manzanas en pantalla: {len(self.comida.posiciones)}")
                     
-                    # Ganador al llegar a 100 puntos
-                    if self.puntuacion >= 100:
+                    # Ganador al llegar a 10000 puntos
+                    if self.puntuacion >= 10000:
                         self.estado_juego = "ganador"
                         crear_particulas(ANCHO//2, ALTO//2, 200, "confeti")
                         print("¡Ganador!")
