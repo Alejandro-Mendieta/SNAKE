@@ -276,7 +276,7 @@ class Serpiente:
         if puntuacion >= 100:
             crear_particulas(
                 self.cuerpo[0][0] * TAMANIO_CELDA + TAMANIO_CELDA // 2,
-                self.serpiente.cuerpo[0][1] * TAMANIO_CELDA + TAMANIO_CELDA // 2,
+                self.cuerpo[0][1] * TAMANIO_CELDA + TAMANIO_CELDA // 2,
                 30, "estrellas"
             )
         elif puntuacion >= 50:
@@ -332,32 +332,42 @@ class Comida:
         self.color = ROJO
         self.generar_multiples_posiciones(3)  # Generar 3 manzanas iniciales
     
-    def generar_nueva_posicion(self, cuerpo_serpiente=None):
+    def generar_nueva_posicion(self, posiciones_evitar=None):
         """Genera una sola posición válida"""
-        if cuerpo_serpiente is None:
-            cuerpo_serpiente = []
+        if posiciones_evitar is None:
+            posiciones_evitar = []
         
         while True:
             nueva_pos = (random.randint(0, COLUMNAS - 1), random.randint(0, FILAS - 1))
-            if nueva_pos not in cuerpo_serpiente and nueva_pos not in self.posiciones:
+            if nueva_pos not in posiciones_evitar:
                 return nueva_pos
     
-    def generar_multiples_posiciones(self, cantidad, cuerpo_serpiente=None):
+    def generar_multiples_posiciones(self, cantidad, posiciones_evitar=None):
         """Genera múltiples posiciones de comida"""
-        if cuerpo_serpiente is None:
-            cuerpo_serpiente = []
+        if posiciones_evitar is None:
+            posiciones_evitar = []
         
         nuevas_posiciones = []
         for _ in range(cantidad):
-            nueva_pos = self.generar_nueva_posicion(cuerpo_serpiente + nuevas_posiciones)
+            nueva_pos = self.generar_nueva_posicion(posiciones_evitar + nuevas_posiciones)
             nuevas_posiciones.append(nueva_pos)
         
         self.posiciones = nuevas_posiciones
     
-    def eliminar_posicion(self, posicion):
-        """Elimina una posición específica cuando la serpiente la come"""
-        if posicion in self.posiciones:
-            self.posiciones.remove(posicion)
+    def reemplazar_posicion(self, posicion_a_reemplazar, cuerpo_serpiente=None):
+        """Reemplaza solo la manzana comida, manteniendo las otras"""
+        if cuerpo_serpiente is None:
+            cuerpo_serpiente = []
+        
+        if posicion_a_reemplazar in self.posiciones:
+            # Remover la manzana comida
+            self.posiciones.remove(posicion_a_reemplazar)
+            
+            # Generar una nueva posición que no esté en el cuerpo de la serpiente ni en las otras manzanas
+            nueva_pos = self.generar_nueva_posicion(cuerpo_serpiente + self.posiciones)
+            self.posiciones.append(nueva_pos)
+            
+            print(f"Manzana reemplazada: {posicion_a_reemplazar} -> {nueva_pos}")
     
     def dibujar(self, pantalla):
         """Dibuja todas las manzanas en sus posiciones"""
@@ -584,6 +594,13 @@ class Juego:
                             self.serpiente.cambiar_direccion(IZQUIERDA)
                         elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
                             self.serpiente.cambiar_direccion(DERECHA)
+                
+                # NUEVO: Reiniciar con ENTER cuando se pierde
+                elif self.estado_juego == "game_over":
+                    if evento.key == pygame.K_RETURN:
+                        self.reiniciar_juego()
+                        self.estado_juego = "jugando"
+                        print("Reiniciando con ENTER desde Game Over")
         
         return True
     
@@ -606,10 +623,9 @@ class Juego:
                     # La serpiente come una manzana
                     self.serpiente.comer(self.puntuacion)
                     self.puntuacion += 10
-                    self.comida.eliminar_posicion(posicion_comida)
                     
-                    # Generar 3 nuevas manzanas
-                    self.comida.generar_multiples_posiciones(3, self.serpiente.cuerpo)
+                    # NUEVO: Reemplazar solo la manzana comida, mantener las otras
+                    self.comida.reemplazar_posicion(posicion_comida, self.serpiente.cuerpo)
                     print(f"Puntuación: {self.puntuacion}")
                     print(f"Manzanas en pantalla: {len(self.comida.posiciones)}")
                     
@@ -688,6 +704,11 @@ class Juego:
         texto_reiniciar = self.fuente.render("JUGAR DE NUEVO", True, BLANCO)
         texto_rect = texto_reiniciar.get_rect(center=boton_reiniciar.center)
         self.pantalla.blit(texto_reiniciar, texto_rect)
+        
+        # NUEVO: Instrucción para reiniciar con ENTER
+        texto_enter = self.fuente_pista.render("", True, NEGRO)
+        texto_rect = texto_enter.get_rect(center=(ANCHO//2, ALTO//2 + 150))
+        self.pantalla.blit(texto_enter, texto_rect)
     
     def correr(self):
         global particulas
@@ -710,7 +731,7 @@ fuente_pista = None
 def main():
     """Función principal con manejo de errores"""
     try:
-        print("Iniciando Snake Game con Múltiples Manzanas...")
+        print("Iniciando Snake Game con Manzanas Persistentes")
         juego = Juego()
         
         # Hacer las fuentes globales disponibles
